@@ -5,33 +5,43 @@ const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const ExtractTextWebpackPlugin = require('extract-text-webpack-plugin');
 
-
 const package = require('./package.json');
-const {NODE_ENV='production', PORT=3000} = process.env;
+const {PORT=3000, NODE_ENV='production'} = process.env;
 
+
+
+const getEntries = basePath =>
+  discoverComponents(basePath)
+    .reduce((acc, [name, path]) =>
+      (acc[name] = path, acc)
+    , {});
+
+const discoverComponents = basePath =>
+  [
+    ...discoverFileComponents(basePath),
+    ...discoverFolderComponents(basePath)
+  ];
+
+const discoverFileComponents = basePath =>
+  readdirSync(basePath)
+    .map(n => [parse(n).name, join(basePath, n)])
+    .filter(([_, path]) => lstatSync(path).isFile())
+    .filter(([_, path]) => base.resolve.extensions.includes(parse(path).ext));
+
+const discoverFolderComponents = basePath =>
+  readdirSync(basePath)
+    .map(n => [n, join(basePath, n)])
+    .filter(([name, path]) => lstatSync(path).isDirectory())
+    .filter(([name, path]) => hasIndex(path))
+    .map(([name, path]) => [name, join(path, 'index')]);
 
 const hasIndex = path =>
   readdirSync(path)
-    .some(n => parse(n).name === 'index');
-
-const discoverComponents = basePath => {
-  const ls = readdirSync(basePath)
-    .map(n => [parse(n).name, join(basePath, n)]);
-
-  const simpleFiles = ls
-    .filter(([n, path]) => lstatSync(path).isFile())
-    .filter(([n, path]) => base.resolve.extensions.includes(parse(path).ext));
-
-  const indexFromFolders = ls
-    .filter(([n, path]) => lstatSync(path).isDirectory())
-    .filter(([n, path]) => hasIndex(path))
-    .map(([n, path]) => [n, join(path, 'index')]);
-
-  return simpleFiles
-    .concat(indexFromFolders)
-    .reduce((acc, [name, path]) => (acc[name] = path, acc)
-    , {});
-};
+    .map(n => parse(n))
+    .some(({name, ext}) =>
+      name === 'index'
+      && base.resolve.extensions.includes(ext)
+    );
 
 
 const base = {
@@ -41,6 +51,7 @@ const base = {
     library: [camelCase(package.name), '[name]'],
     libraryTarget: 'umd',
     path: join(__dirname, parse(package.main).dir),
+    publicPath: '/',
   },
 
   resolve: {
@@ -60,7 +71,7 @@ const base = {
       {
         test: /\.(png|jpg|jpeg|gif)$/,
         use: 'file-loader'
-      },
+      }
     ]
   },
 
@@ -71,13 +82,12 @@ const base = {
       }
     })
   ]
-
 };
 
 
 const env = {
   production: {
-    entry: discoverComponents(join(__dirname, 'src', 'components')),
+    entry: getEntries(join(__dirname, 'src', 'components')),
 
     externals: Object.keys(package.dependencies),
 
@@ -89,7 +99,7 @@ const env = {
           use: ExtractTextWebpackPlugin.extract({
             fallback: 'style-loader',
             use: [
-              { loader: 'css-loader', options: {importLoaders: 1, minimize: true } },
+              { loader: 'css-loader', options: {importLoaders: 1, minimize: true} },
               'postcss-loader'
             ]
           })
@@ -113,6 +123,7 @@ const env = {
       new webpack.optimize.ModuleConcatenationPlugin(),
       new webpack.optimize.UglifyJsPlugin(),
     ]
+
   },
 
   development: {
@@ -125,7 +136,7 @@ const env = {
           test: /\.css$/,
           use: [
             'style-loader',
-            { loader: 'css-loader', options: { importLoaders: 1} },
+            { loader: 'css-loader', options: { importLoaders: 1 }},
             'postcss-loader'
           ]
         }
@@ -134,13 +145,15 @@ const env = {
 
     plugins: [
       ...base.plugins,
-      new webpack.HotModuleReplacementPlugin(),
-      new webpack.NamedModulesPlugin(),
+
       new HtmlWebpackPlugin({
         template: join(__dirname, 'example', 'index.html'),
         filename: 'index.html',
-        inject: 'body'
-      })
+        inject: 'body',
+      }),
+
+      new webpack.HotModuleReplacementPlugin(),
+      new webpack.NamedModulesPlugin(),
     ],
 
     devtool: 'source-map',
@@ -149,15 +162,16 @@ const env = {
       hot: true,
       inline: true,
       historyApiFallback: true,
-      port: PORT,
+      port: 3000,
       publicPath: '/',
       contentBase: join(__dirname, 'example'),
       stats: {
-        colors: true
+        colors: true,
       }
-    },
+    }
   }
+
 };
 
 
-module.exports = Object.assign(base, env[NODE_ENV]);
+module.exports = Object.assign({}, base, env[NODE_ENV]);

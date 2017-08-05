@@ -4,12 +4,13 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 
 import Hello from '../src/components/Hello'
-import World from '../src/components/World'
+
 
 const App = () => <div>
-  <Hello />
-  <World />
+  <Hello title="Hello World" />
+  It Works!
 </div>
+
 
 ReactDOM.render(<App />, document.getElementById('root'))
 
